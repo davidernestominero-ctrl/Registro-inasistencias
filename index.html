@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro de inasistencia</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;background:#f3f6fa;margin:0;padding:20px;color:#243247}
+.container{background:#fff;max-width:560px;width:100%;margin:0 auto;padding:28px;border-radius:14px;box-shadow:0 5px 22px #00000012}
+.header{text-align:center;border-bottom:2px solid #e8edf3;padding-bottom:16px;margin-bottom:24px}
+.header h1{font-size:21px;color:#183b63;margin:0}
+.titulo{text-align:center;margin-bottom:24px}
+.titulo h2{font-size:24px;margin:0 0 6px}
+.titulo h4{font-size:17px;color:#637083;font-weight:normal;margin:0}
+label{display:block;font-weight:600;margin:0 0 8px;color:#344256}
+input[type=text],input[type=tel],input[type=date],textarea{width:100%;padding:13px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;margin-bottom:18px;background:#fff}
+textarea{min-height:115px;resize:vertical}
+.label-boton{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.btn-voz{border:0;background:#e7edf5;color:#233b58;border-radius:20px;padding:8px 13px;font-weight:bold;cursor:pointer;white-space:nowrap}
+.btn-voz.escuchando{background:#c62828;color:#fff}
+.archivos{display:flex;gap:10px;margin-bottom:8px}
+.archivos label{flex:1;text-align:center;padding:12px 8px;background:#e8eef6;border:1px solid #ccd6e3;border-radius:8px;cursor:pointer;margin:0}
+input[type=file]{display:none}
+#nombre-archivo{display:block;text-align:center;color:#64748b;font-size:13px;margin:10px 0 18px;overflow-wrap:anywhere}
+#btnEnviar{width:100%;padding:15px;border:0;border-radius:8px;background:#1769aa;color:white;font-size:17px;font-weight:bold;cursor:pointer}
+#btnEnviar:disabled{opacity:.6;cursor:wait}
+#error{display:none;color:#b42318;background:#fff0ef;padding:12px;border-radius:8px;margin-top:14px;line-height:1.45}
+#estado{display:none;text-align:center;padding:24px 5px}
+#estado h3{color:#16803c;font-size:25px}
+#estado p{line-height:1.5}
+#estado button{padding:12px 18px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;font-weight:bold;cursor:pointer}
+.ayuda{font-size:12px;color:#64748b;text-align:center;margin-top:15px}
+@media(max-width:420px){body{padding:12px}.container{padding:20px}.header h1{font-size:18px}.archivos{flex-direction:column}}
+</style>
+</head>
+<body>
+<main class="container">
+  <header class="header"><h1>Centro Escolar Catarino de Jesús Ortiz</h1></header>
+  <section id="areaFormulario">
+    <div class="titulo"><h2>Registro de inasistencia</h2><h4>4.º Grado B</h4></div>
+    <form id="formInasistencia">
+      <div class="label-boton"><label for="estudiante">Nombre del estudiante:</label><button type="button" class="btn-voz" data-target="estudiante">🎤 Dictar</button></div>
+      <input type="text" id="estudiante" required placeholder="Ej. Juan Pérez">
+      <label for="telefono">Número de teléfono del responsable:</label>
+      <input type="tel" id="telefono" name="telefono" required inputmode="tel"
+        autocomplete="tel" maxlength="16" placeholder="Ej. 71234567 o +503 71234567"
+        pattern="(?:\+?503[\s-]?)?[267][0-9]{3}[\s-]?[0-9]{4}"
+        title="Ingrese un número salvadoreño válido de 8 dígitos; puede incluir +503.">
+      <label for="fecha">Fecha de inasistencia:</label>
+      <input type="date" id="fecha" required>
+      <div class="label-boton"><label for="motivo">Justificación / motivo:</label><button type="button" class="btn-voz" data-target="motivo">🎤 Dictar</button></div>
+      <textarea id="motivo" required placeholder="Escriba o dicte el motivo..."></textarea>
+      <label>Adjuntar foto o tomar foto (opcional):</label>
+      <div class="archivos">
+        <label for="foto">📁 Seleccionar archivo</label><input type="file" id="foto" accept="image/*">
+        <label for="fotoCamara">📷 Tomar foto</label><input type="file" id="fotoCamara" accept="image/*" capture="environment">
+      </div>
+      <span id="nombre-archivo">Ninguna foto seleccionada</span>
+      <button id="btnEnviar" type="submit">Enviar registro</button>
+      <div id="error" role="alert"></div>
+    </form>
+    <p class="ayuda">Revise los datos antes de enviar el registro.</p>
+  </section>
+  <section id="estado">
+    <div style="font-size:56px">✅</div><h3>¡Envío exitoso!</h3>
+    <p>El registro fue guardado correctamente.</p>
+    <button type="button" id="otro">Registrar otra inasistencia</button>
+  </section>
+</main>
+<script>
+const ENDPOINT = '/.netlify/functions/registrar';
+const file1 = document.getElementById('foto');
+const file2 = document.getElementById('fotoCamara');
+const nombreArchivo = document.getElementById('nombre-archivo');
+[file1,file2].forEach(input => input.addEventListener('change', e => {
+  const f=e.target.files[0];
+  if(!f)return;
+  nombreArchivo.textContent='Foto seleccionada: '+f.name;
+  if(e.target===file1)file2.value=''; else file1.value='';
+}));
+
+// Dictado por voz: compatible con navegadores que ofrecen Web Speech API.
+const botonesVoz=document.querySelectorAll('.btn-voz');
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition=null, botonActivo=null, temporizadorSilencio=null;
+if(SpeechRecognition){
+  recognition=new SpeechRecognition();
+  recognition.lang='es-SV'; recognition.continuous=true; recognition.interimResults=false;
+  recognition.onstart=()=>{if(botonActivo){botonActivo.textContent='🛑 Detener';botonActivo.classList.add('escuchando');}};
+  recognition.onresult=e=>{
+    clearTimeout(temporizadorSilencio);
+    const texto=e.results[e.results.length-1][0].transcript.trim();
+    const destino=document.getElementById(botonActivo.dataset.target);
+    destino.value+=(destino.value?' ':'')+texto;
+    temporizadorSilencio=setTimeout(()=>recognition.stop(),2500);
+  };
+  recognition.onerror=e=>{
+    clearTimeout(temporizadorSilencio);
+    if(e.error==='not-allowed')alert('Permita el acceso al micrófono en el navegador.');
+  };
+  recognition.onend=()=>{
+    clearTimeout(temporizadorSilencio);
+    if(botonActivo){botonActivo.textContent='🎤 Dictar';botonActivo.classList.remove('escuchando');botonActivo=null;}
+  };
+  botonesVoz.forEach(b=>{
+    b.addEventListener('click',()=>{
+      if(botonActivo){recognition.stop();return;}
+      botonActivo=b;document.getElementById(b.dataset.target).focus();
+      try{recognition.start();}catch(err){botonActivo=null;alert('No se pudo iniciar el micrófono. Intente nuevamente.');}
+      temporizadorSilencio=setTimeout(()=>{if(recognition)recognition.stop();},7000);
+    });
+  });
+}else{
+  botonesVoz.forEach(b=>{b.disabled=true;b.textContent='Voz no disponible';});
+}
+
+function comprimirFoto(file){
+  return new Promise((resolve,reject)=>{
+    if(!file.type.startsWith('image/'))return reject(new Error('El archivo seleccionado no es una imagen.'));
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('No se pudo leer la fotografía.'));
+    reader.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error('No se pudo procesar la fotografía.'));
+      img.onload=()=>{
+        const max=1280, scale=Math.min(1,max/Math.max(img.width,img.height));
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.max(1,Math.round(img.width*scale));
+        canvas.height=Math.max(1,Math.round(img.height*scale));
+        const ctx=canvas.getContext('2d');
+        if(!ctx)return reject(new Error('No se pudo preparar la fotografía.'));
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        resolve(canvas.toDataURL('image/jpeg',0.7));
+      };
+      img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('formInasistencia').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const form=e.currentTarget, btn=document.getElementById('btnEnviar'), error=document.getElementById('error');
+  if(!form.reportValidity())return;
+  btn.disabled=true;btn.textContent='Enviando...';error.style.display='none';error.textContent='';
+  try{
+    const file=file1.files[0]||file2.files[0];
+    const datos={
+      estudiante:document.getElementById('estudiante').value.trim(),
+      telefono:document.getElementById('telefono').value.trim(),
+      fecha:document.getElementById('fecha').value,
+      motivo:document.getElementById('motivo').value.trim(),
+      foto:file?await comprimirFoto(file):'',
+      nombreFoto:file?file.name:''
+    };
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),60000);
+    let response;
+    try{
+      response=await fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(datos),signal:controller.signal});
+    }finally{clearTimeout(timer);}
+    const result=await response.json().catch(()=>null);
+    if(!response.ok)throw new Error(result?.message||('Error del servidor ('+response.status+').'));
+    if(!result||result.status!=='success')throw new Error(result?.message||'El servidor no confirmó el registro.');
+    document.getElementById('areaFormulario').style.display='none';
+    document.getElementById('estado').style.display='block';
+  }catch(err){
+    console.error(err);
+    error.textContent=err.name==='AbortError'?'La operación tardó demasiado. Compruebe su conexión e intente de nuevo.':(err.message||'No se pudo enviar el registro.');
+    error.style.display='block';
+  }finally{btn.disabled=false;btn.textContent='Enviar registro';}
+});
+
+document.getElementById('otro').addEventListener('click',()=>{
+  document.getElementById('formInasistencia').reset();
+  nombreArchivo.textContent='Ninguna foto seleccionada';
+  document.getElementById('estado').style.display='none';
+  document.getElementById('areaFormulario').style.display='block';
+});
+</script>
+</body>
+</html>

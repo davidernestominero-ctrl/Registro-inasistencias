@@ -1,0 +1,27 @@
+REGISTRO DE INASISTENCIA - ARCHIVOS ACTUALIZADOS
+
+Archivos:
+- index.html: formulario web.
+- Codigo.gs: Google Apps Script para guardar datos, fotografías y notificar al administrador.
+- netlify/functions/registrar.js: intermediario Netlify; ya contiene la URL /exec proporcionada.
+- netlify.toml: configuración de Netlify.
+
+Configuración incluida:
+Correo administrador: david.ernesto.minero@clases.edu.sv
+Carpeta de fotografías: 1YHlFQ_nOQ2MRO2FGUaFDNw738piNQcAZ
+Hoja de cálculo: 1X0s_-XJM5zSeL71NNWfXV3j8YQLEJUTOhwd5uRm5mBY
+Pestaña: Registros inasistencias
+Título: Registro de inasistencia
+Teléfono: obligatorio, 8 dígitos salvadoreños iniciados en 2, 6 o 7; +503 opcional.
+
+PASOS DE INSTALACIÓN:
+1. Abra https://script.google.com/ y cree un proyecto.
+2. Pegue Codigo.gs y guarde. Ejecute probarConfiguracion una vez y autorice permisos.
+3. Implemente > Nueva implementación > Aplicación web. Ejecutar como: Yo. Quién tiene acceso: Cualquier persona.
+4. La URL /exec ya está configurada en netlify/functions/registrar.js. No necesita crear otra implementación si la implementación existente tiene el código compatible con este formulario.
+5. Publique en Netlify el contenido de esta carpeta.
+6. Envíe una prueba y confirme la fila en la pestaña Registros inasistencias y la foto en Drive.
+
+URL configurada: https://script.google.com/macros/s/AKfycbxfm1dFPuzw-J7Xba2KTHS0uFJhjxdZ7z8k5BpwSDMHdvcUPi-J1XsX8h-6-5ZkA07g/exec
+
+Nota: el Apps Script de la implementación publicada debe incluir doPost, validación del teléfono, guardado en la hoja y subida de fotografías con los mismos nombres de campos que envía el formulario. La URL por sí sola no actualiza el código que ya está publicado.
